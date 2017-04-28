@@ -15,7 +15,14 @@ typedef struct {
 	volatile unsigned int out_pos;	//posicion de out
 } ring_buffer_t;
 
-void BUFFER_INIT(struct ring_buffer_t *buffer);
+char UART0_getchar(char c,ring_buffer_t *rec);
+int IS_BUFFER_EMTPY(int in_pos,int out_pos);
+int IS_BUFFER_FULL(int in_pos, int out_pos);
+uint8_t UART0_available(int in_pos,int out_pos);
+void BUFFER_INIT(ring_buffer_t *buffer);
+void puts(char *cad, ring_buffer_t * trans);
+void putchar(char data,ring_buffer_t **trans);
+
 
 
 int main(void)
@@ -31,7 +38,7 @@ int main(void)
     }
 }
 
-void BUFFER_INIT(struct ring_buffer_t *buffer)
+void BUFFER_INIT(ring_buffer_t *buffer)
 {
 	buffer->in_idx = 0;
 	buffer->out_idx = 0;
@@ -39,29 +46,30 @@ void BUFFER_INIT(struct ring_buffer_t *buffer)
 	buffer->out_pos = 0;
 }
 
-void putchar(char data, struct ring_buffer_t)
-{
-	
-}
-void puts(char *cad)
-{
-	while( !(IS_BUFFER_FULL()) && *cad)
+void puts(char *cad, ring_buffer_t * trans)
+{	
+	int cont = 0;
+	while( !(IS_BUFFER_FULL(trans->in_pos,trans->out_pos)) && *cad)
 	{
-				
+				putchar(*cad++,&trans);
+				cont++;
 	}
 }
-
-char UART0_getchar(char c)
+void putchar(char data, ring_buffer_t **trans)
+{	
+	(*trans)->buffer[(*trans)->]
+}
+char UART0_getchar(char c, ring_buffer_t *rec)
 {
-	while( IS_BUFFER_FULL() )
+	while( !IS_BUFFER_EMTPY(rec->in_idx,rec->out_pos))
 	{
-		
+		return rec->buffer[rec->out_pos];
+		rec->out_pos++;
 	}
-	
 }
 int IS_BUFFER_FULL(int in_pos, int out_pos)
 {
-	if(in == (out-1))
+	if(in_pos == (out_pos-1))
 	{
 		return 1;
 	}
