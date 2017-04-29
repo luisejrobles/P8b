@@ -11,13 +11,13 @@
 #define BUFFER_EMPY(buffer) (buffer.in_idx == buffer.out_idx)
 #define BUFFER_FULL(buffer) (buffer.in_idx == (buffer.out_idx-1))
 #define MOD(n) (n&(BUFFER_SIZE-1))
-#define RX_IN_EN (UCSR0B = (1<< RXCIE0))	//rx interrupt enable
-#define TX_IN_EN (UCSR0B = (1<<UDRIE0))		//tx interrupt enable
+#define RX_IN_EN (UCSR0B |= (1<<RXCIE0))	//rx interrupt enable
+#define TX_IN_EN (UCSR0B |= (1<<UDRIE0))		//tx interrupt enable
 
 typedef struct {
 	char buffer[BUFFER_SIZE];       //espacio reservado 
-	volatile unsigned char in_idx;  //indice entrada (Head) 
-	volatile unsigned char out_idx; //indice salida (tail)
+	volatile unsigned char in_idx: 6;  //indice entrada (Head) 
+	volatile unsigned char out_idx: 6; //indice salida (tail)
 } ring_buffer_t;
 
 char UART0_getchar(void);
@@ -38,6 +38,7 @@ int main(void)
 {	
 	char cad[20];
 	uint16_t num;
+	
 	UART0_Init(0);
 	BUFFER_INIT(transmision);
 	BUFFER_INIT(recepcion);
@@ -90,6 +91,11 @@ void itoa(char *str, uint16_t number, uint8_t base)
 		j--;
 	}
 }
+void BUFFER_INIT(void)
+{
+	buffer.in_idx = 0;
+	buffer.out_idx = 0;
+}
 void UART0_Init(uint16_t mode)
 {
 	/*Función para inicializar el puerto serie del ATmega1280/2560 
@@ -106,11 +112,6 @@ void UART0_Init(uint16_t mode)
 		UBRR0 = 103;	//19.2k baud rate UBRR
 	}
 }	  
-void BUFFER_INIT(ring_buffer_t buffer)
-{
-	buffer.in_idx = 0;
-	buffer.out_idx = 0;
-}
 void UART0_gets(char *str)
 {
 	unsigned char c;
@@ -143,12 +144,18 @@ void UART0_puts(char *cad)
 }
 void UART0_putchar(char data)
 {	
+	while(BUFFER_FULL(transmision));
+	
 	if(!(BUFFER_FULL(transmision)))
 	{
 		transmision.buffer[transmision.in_idx] = data;	//guardado char en el arreglo
 		transmision.in_idx = MOD(transmision.in_idx++);	//incrementando pocision en el arreglo
-		//TX_IN_EN;	//tx interrupt enable
-		UCSR0B |= (1<<UDRIE0);
+		TX_IN_EN;	//tx interrupt enable
+	}else if(BUFFER_EMPY(transmision))
+	{
+		transmision.buffer[transmision.in_idx] = data;	//guardado char en el arreglo
+		transmision.in_idx = MOD(transmision.in_idx++);	//incrementando pocision en el arreglo
+		TX_IN_EN;	//tx interrupt enable
 	}
 }
 char UART0_getchar(void)
@@ -156,8 +163,7 @@ char UART0_getchar(void)
 	char c;
 	while( !(UCSR0A&(1<<RXC0)));
 	
-	UCSR0B |= (1<< RXCIE0);
-	//RX_IN_EN;	//rx interrupt enable
+	RX_IN_EN;	//rx interrupt enable
 	c = recepcion.buffer[recepcion.out_idx];	//guardando dato de la posicion del arreglo
 	recepcion.out_idx = MOD(recepcion.out_idx++);	//incrementando out
 	
@@ -199,8 +205,12 @@ ISR(USART0_RX_vect)	//Rx interrupt
 }
 ISR(USART0_UDRE_vect)	//tx interrupt
 {
-	UDR0 = transmision.buffer[transmision.out_idx];
-	transmision.out_idx = MOD(transmision.out_idx++);
-	while(!(UCSR0A&(1<<UDRE0)));
-	UCSR0B &= (223<<TXB80);
+	if(BUFFER_EMPY(transmision){
+		UCSR0B &= ~(1<<UDRIE0); 
+	}else{
+		UDR0 = transmision.buffer[transmision.out_idx];
+		transmision.out_idx = MOD(transmision.out_idx++);
+		while(!(UCSR0A&(1<<UDRE0)));
+		UCSR0B &= (223<<TXB80);
+	}
 }
